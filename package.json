@@ -1,0 +1,19 @@
+{
+  "name": "gipuli",
+  "version": "1.0.0",
+  "description": "A warm fantasy exploration space built around the Steam Punk Bar model.",
+  "main": "index.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "CC-BY-4.0",
+  "type": "module",
+  "dependencies": {
+    "three": "^0.184.0",
+    "vite": "^8.0.14"
+  }
+}

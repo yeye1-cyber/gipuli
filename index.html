@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>最后的记忆酒馆</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="world"></canvas>
+      <audio id="bg-music" src="/music.mp3" loop preload="auto"></audio>
+
+      <section id="intro" class="intro">
+        <div class="intro-glow"></div>
+        <div class="intro-copy">
+          <p>人们开始遗忘。</p>
+          <p>不是遗忘名字。</p>
+          <p>而是遗忘情绪。</p>
+          <p>快乐、悲伤、思念……</p>
+          <p>都正在从世界消失。</p>
+          <p>而这间酒馆，仍保存着最后的记忆。</p>
+          <h1>《最后的记忆酒馆》</h1>
+          <button id="enter-world" type="button">进入酒馆</button>
+        </div>
+      </section>
+
+      <div class="hud hidden">
+        <div class="title">
+          <span class="sigil"></span>
+          <div>
+            <h1>最后的记忆酒馆</h1>
+            <p>情绪回声 <span id="memory-count">0</span>/<span id="memory-total">10</span></p>
+          </div>
+        </div>
+        <div id="memory-list" class="memory-list"></div>
+      </div>
+
+      <div id="prompt" class="prompt hidden">靠近酒馆，倾听建筑残留的情绪</div>
+
+      <article id="story" class="story hidden">
+        <button id="close-story" aria-label="关闭">×</button>
+        <h2 id="story-title"></h2>
+        <p id="story-text"></p>
+      </article>
+
+      <div id="complete" class="complete hidden">
+        <div class="complete-mark"></div>
+        <p>酒馆重新被记忆点亮</p>
+      </div>
+
+      <div class="controls hidden">
+        <button id="music-toggle" type="button">开启音乐</button>
+        <span>WASD 移动</span>
+        <span>Shift 慢跑</span>
+        <span>Space 轻跃</span>
+        <span>V 切换视角</span>
+        <span>E 倾听</span>
+      </div>
+
+      <div class="credit hidden">
+        Model: “Steam Punk Bar” by anastasiaremezova, CC-BY-4.0
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
