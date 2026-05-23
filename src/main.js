@@ -15,7 +15,10 @@ const memoryListEl = document.querySelector("#memory-list");
 const completeEl = document.querySelector("#complete");
 const musicToggle = document.querySelector("#music-toggle");
 const bgMusic = document.querySelector("#bg-music");
-document.querySelector("#close-story").addEventListener("click", () => storyEl.classList.add("hidden"));
+document.querySelector("#close-story").addEventListener("click", () => {
+  clearTimeout(showStory.timer);
+  storyEl.classList.add("hidden");
+});
 bgMusic.volume = 0;
 musicToggle.addEventListener("click", () => toggleMusic());
 enterWorldBtn.addEventListener("click", () => enterMemoryTavern());
@@ -54,6 +57,8 @@ const gears = [];
 const steamPuffs = [];
 const jumpTrails = [];
 const phantomGroups = [];
+const awakeningParticles = [];
+const awakeningWindowLights = [];
 let hovered = null;
 let slowTime = 1;
 let slowTimer = 0;
@@ -62,11 +67,17 @@ let barrelTone = null;
 let musicEnabled = false;
 let musicFade = null;
 let coreLit = false;
+let awakening = null;
+let hemiLight = null;
+let sunLight = null;
+let skyMaterial = null;
 let restorationLevel = 0;
 let viewMode = "explore";
 let character = null;
 let characterVelocityY = 0;
 let characterGrounded = true;
+let jumpComboTimer = 0;
+let usedComboJump = false;
 let nearestInteractable = null;
 let navTarget = null;
 let groundMesh = null;
@@ -79,10 +90,16 @@ let dragStarted = false;
 let lastPointerX = 0;
 let lastPointerY = 0;
 const worldMeshes = [];
-const obstacleBoxes = [];
+const collisionMeshes = [];
+const walkableMeshes = [];
 const downRaycaster = new THREE.Raycaster();
+const bodyRaycaster = new THREE.Raycaster();
 const characterRadius = 0.18;
+const memoryTouchRadius = 0.65;
 const maxWalkableY = 1.15;
+const jumpStrength = 5.7;
+const comboJumpStrength = 8.1;
+const jumpComboWindow = 0.34;
 
 const stories = {
   barrel: {
@@ -104,19 +121,113 @@ const stories = {
 };
 
 const memories = [
-  { id: "barrel-song", name: "酒桶里的笑声", title: "会唱歌的酒桶", text: "这是一个会唱歌的酒桶。靠近它时，旧木纹里还藏着很轻的合唱。", pos: [-4.4, 1.1, 3.0], color: "#ffd27f", phantom: "crowd" },
-  { id: "clock-time", name: "停下来的时间", title: "停在傍晚的钟", text: "它曾经停止过时间。钟声落下时，所有离别都慢了一拍。", pos: [4.6, 2.1, 1.2], color: "#ffe2a4", phantom: "warmth" },
-  { id: "lamp-waiting", name: "路灯下的等待", title: "等待很多年的灯", text: "有人曾在这里等待很多年。灯没有问原因，只是一直亮着。", pos: [-2.8, 1.55, 4.6], color: "#fff0bd", phantom: "figure" },
-  { id: "bridge-return", name: "木桥上的脚步", title: "回来的脚步声", text: "每一块木板都记得脚步。有人离开，也有人在黄昏里回来。", pos: [-0.8, 0.85, 5.4], color: "#f4c98b", phantom: "footsteps" },
-  { id: "sign-name", name: "门牌上的名字", title: "门牌没有忘记", text: "门牌被风吹旧了，却仍记得那些曾经被喊出的名字。", pos: [0.2, 1.65, 3.6], color: "#ffc27a", phantom: "letters" },
-  { id: "chimney-breath", name: "烟囱的呼吸", title: "烟囱还在呼吸", text: "它把炉火的温度送向天空，像把悲伤慢慢说完。", pos: [2.0, 3.15, -0.8], color: "#ffb48a", phantom: "steam" },
-  { id: "window-light", name: "窗里的灯", title: "窗里还有灯", text: "窗户映出模糊的人影。那不是鬼魂，是被保存下来的思念。", pos: [2.9, 1.9, 2.6], color: "#ffd58f", phantom: "figure" },
-  { id: "table-supper", name: "桌上的晚餐", title: "无人收拾的桌子", text: "桌面上没有食物，却还留着一起吃晚餐时的安静。", pos: [3.7, 1.05, 3.1], color: "#d9c18f", phantom: "crowd" },
-  { id: "stool-rest", name: "凳子上的疲惫", title: "给旅人坐下的凳子", text: "它承接过太多疲惫。每一次坐下，世界都会暂时轻一点。", pos: [4.7, 1.05, 2.1], color: "#c9d8a5", phantom: "warmth" },
-  { id: "door-home", name: "门后的归处", title: "门后的归处", text: "门后并不一定是房间。有时候，它只是让人相信自己仍有地方可去。", pos: [-1.6, 1.3, 1.6], color: "#ffe8a8", phantom: "letters" },
+  {
+    id: "dusk",
+    name: "黄昏",
+    title: "黄昏",
+    text: "黄昏不是时间，是温度。\n酒馆最后一次亮灯时，窗外还有人等雨停。\n木门、风铃、老钟、酒杯、便签、壁炉、猫、伞、灯。\n她推门说：“我不想忘记笑。”\n于是酒馆记住了那场还没下完的雨，和她的嘴角。",
+    keywords: ["木门", "风铃", "老钟", "酒杯", "便签", "壁炉", "猫", "伞", "灯"],
+    position: [-4.9, 1.0, 4.7],
+    color: "#ffd27f",
+    phantom: "warmth",
+  },
+  {
+    id: "piano",
+    name: "琴声",
+    title: "琴声",
+    text: "钢琴没人弹，却自己响了。\n是某个秋天，她第一次在酒馆弹《月光》。\n琴键、尘土、酒架、暖气、窗棂、哈气、窗花、小孩、铃铛、摇篮曲。\n她弹得很慢，像在等谁回家。\n酒馆把那晚的温度存进琴弦。\n后来再也没有人弹琴，但琴声还在等。",
+    keywords: ["琴键", "尘土", "酒架", "暖气", "窗棂", "哈气", "窗花", "小孩", "铃铛", "摇篮曲"],
+    position: [2.8, 2.35, 4.4],
+    color: "#ffe2a4",
+    phantom: "letters",
+  },
+  {
+    id: "scarf",
+    name: "围巾",
+    title: "围巾",
+    text: "一条米白色围巾挂在吧台角落。\n是她说：“帮他留着，他怕冷。”\n毛线、木椅、烟斗、酒杯、火柴、窗缝、雪、钥匙、铅笔、便签。\n她每晚来，坐在同一个位置，看同一个空椅。\n酒馆学会了什么叫“还来”。\n后来围巾旧了，她也不来了。",
+    keywords: ["毛线", "木椅", "烟斗", "酒杯", "火柴", "窗缝", "雪", "钥匙", "铅笔", "便签"],
+    position: [-5.5, 1.9, 0.4],
+    color: "#fff0bd",
+    phantom: "figure",
+  },
+  {
+    id: "note",
+    name: "便签",
+    title: "便签",
+    text: "吧台下面贴着一张泛黄便签。\n上面写：“牛奶不要加糖。”\n字迹、胶带、木纹、杯底、蜡烛、阴影、猫爪、窗台、雨声、叹息。\n是她写给他最后的叮嘱。\n他后来来了很多年，喝不加糖的牛奶。\n酒馆才知道，有些叮嘱是遗言。",
+    keywords: ["字迹", "胶带", "木纹", "杯底", "蜡烛", "阴影", "猫爪", "窗台", "雨声", "叹息"],
+    position: [-1.0, 0.9, 5.9],
+    color: "#f4c98b",
+    phantom: "letters",
+  },
+  {
+    id: "umbrella",
+    name: "雨伞",
+    title: "雨伞",
+    text: "黑色长伞靠在门后，伞骨锈了。\n她说：“他忘记带走了。”\n铁锈、水渍、门垫、风铃、灯影、脚步、窗、夜、沉默、回头。\n她等了一个冬天，每次来都看一眼那把伞。\n酒馆把她的目光存进木纹。\n后来伞还在，她不再回头了。",
+    keywords: ["铁锈", "水渍", "门垫", "风铃", "灯影", "脚步", "窗", "夜", "沉默", "回头"],
+    position: [5.4, 1.15, 0.9],
+    color: "#ffc27a",
+    phantom: "footsteps",
+  },
+  {
+    id: "match",
+    name: "火柴",
+    title: "火柴",
+    text: "壁炉旁一盒只剩最后一根的火柴。\n她说：“那天我们用它点蜡烛。”\n木盒、蜡痕、灰烬、烟、羊毛、手套、窗霜、钟摆、夜灯、安静。\n后来她一个人喝酒，不再点壁炉。\n酒馆记得那根火柴燃烧的样子，像她最后一次笑。\n火灭了，她也没再说话。",
+    keywords: ["木盒", "蜡痕", "灰烬", "烟", "羊毛", "手套", "窗霜", "钟摆", "夜灯", "安静"],
+    position: [1.8, 2.65, -2.4],
+    color: "#ffb48a",
+    phantom: "steam",
+  },
+  {
+    id: "snow",
+    name: "雪",
+    title: "雪",
+    text: "那年冬天雪特别大。\n她靠在窗边说：“他答应回来堆雪人的。”\n窗框、冰花、路灯、脚印、围巾、手套、酒瓶、木桌、空杯、影子。\n雪下了三天，他没有回来。\n她坐了一整夜，酒馆没关灯。\n酒馆学会了什么叫“还没来”。",
+    keywords: ["窗框", "冰花", "路灯", "脚印", "围巾", "手套", "酒瓶", "木桌", "空杯", "影子"],
+    position: [-3.6, 2.55, -3.6],
+    color: "#cfe7ff",
+    phantom: "figure",
+  },
+  {
+    id: "clock",
+    name: "钟",
+    title: "钟",
+    text: "墙上的钟停了，停在十点十七分。\n那是她最后一次离开的时间。\n指针、齿轮、灰尘、木框、灯绳、吧台、门、风、夜、沉默。\n她说：“我明天还来。”\n钟没有再走。\n酒馆知道，“明天”有时候不会来。",
+    keywords: ["指针", "齿轮", "灰尘", "木框", "灯绳", "吧台", "门", "风", "夜", "沉默"],
+    position: [5.1, 2.15, -3.2],
+    color: "#ffd58f",
+    phantom: "warmth",
+  },
+  {
+    id: "empty-glass",
+    name: "空杯",
+    title: "空杯",
+    text: "吧台上有一只没洗的空杯。\n杯底有一圈干了的酒渍。\n玻璃、水痕、灯影、木纹、烟、沉默、手印、夜、门缝、光。\n她最后一杯酒没喝完。\n酒馆把它留在那里，像留在句号前的一个逗号。\n后来没人敢碰那只杯子。",
+    keywords: ["玻璃", "水痕", "灯影", "木纹", "烟", "沉默", "手印", "夜", "门缝", "光"],
+    position: [3.7, 1.0, 3.1],
+    color: "#d9c18f",
+    phantom: "crowd",
+  },
+  {
+    id: "tavern-itself",
+    name: "酒馆本身",
+    title: "酒馆本身",
+    text: "酒馆不是房子，是最后一滴情绪。\n壁炉、灯、钟、伞、围巾、便签、火柴、杯、琴、门。\n世界忘了悲伤，它替世界记得。\n她走后，酒馆把她的等待拆成十个碎片。\n每个进入酒馆的人，都会听见一点点。\n直到最后一个碎片被倾听——\n酒馆轻轻亮了一下，然后彻底安静。",
+    keywords: ["壁炉", "灯", "钟", "伞", "围巾", "便签", "火柴", "杯", "琴", "门"],
+    position: [0.4, 3.05, -4.7],
+    color: "#ffe8a8",
+    phantom: "letters",
+  },
 ];
 const collected = new Set();
 memoryTotalEl.textContent = memories.length;
+
+function memoryPosition(memory) {
+  return memory.position || memory.pos;
+}
 
 memories.forEach((memory) => {
   const chip = document.createElement("div");
@@ -138,9 +249,11 @@ function makeMat(color, emissive = "#000000", intensity = 0) {
 
 function addLights() {
   const hemi = new THREE.HemisphereLight("#f8c48a", "#5f4c86", 1.8);
+  hemiLight = hemi;
   scene.add(hemi);
 
   const sun = new THREE.DirectionalLight("#ffb46e", 3.2);
+  sunLight = sun;
   sun.position.set(-8, 12, 7);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -194,6 +307,7 @@ function createSkyAndForest() {
       }
     `,
   });
+  skyMaterial = skyMat;
   scene.add(new THREE.Mesh(skyGeo, skyMat));
 
   const trunkMat = makeMat("#4d3529");
@@ -275,6 +389,27 @@ function createParticles() {
   particles.name = "floating-particles";
   scene.add(particles);
   return particles;
+}
+
+function createAwakeningParticles() {
+  const mat = new THREE.SpriteMaterial({
+    color: "#fff0bd",
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  for (let i = 0; i < 46; i += 1) {
+    const sprite = new THREE.Sprite(mat.clone());
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 0.9 + Math.random() * 2.4;
+    sprite.position.set(Math.cos(angle) * radius, 1.05 + Math.random() * 2.6, Math.sin(angle) * radius);
+    sprite.scale.setScalar(0.12 + Math.random() * 0.2);
+    sprite.userData.base = sprite.position.clone();
+    sprite.userData.offset = Math.random() * 100;
+    awakeningParticles.push(sprite);
+    scene.add(sprite);
+  }
 }
 
 function createSteam() {
@@ -399,7 +534,7 @@ function createHotspots() {
 
   memories.forEach((memory) => {
     const group = new THREE.Group();
-    group.position.set(...memory.pos);
+    group.position.set(...memoryPosition(memory));
     const color = new THREE.Color(memory.color);
     const orb = new THREE.Mesh(
       new THREE.SphereGeometry(0.14, 24, 16),
@@ -426,7 +561,7 @@ function createHotspots() {
     group.add(orb, halo);
     group.userData.memory = memory;
     group.userData.floatOffset = Math.random() * 100;
-    group.userData.baseY = memory.pos[1];
+    group.userData.baseY = memoryPosition(memory)[1];
     scene.add(group);
     addInteractable(group, "memory", { title: memory.title, text: memory.text }, "点击光球，倾听残留的情绪");
   });
@@ -486,10 +621,26 @@ function createSkyChild() {
   headGlow.position.copy(head.position);
   bodyRoot.add(headGlow);
 
-  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.54, 0.98, 4), beige);
-  cape.position.set(0, 0.55, -0.08);
-  cape.rotation.set(-0.16, Math.PI * 0.25, 0);
-  cape.scale.set(1.15, 1, 0.48);
+  const capeMat = beige.clone();
+  capeMat.emissiveIntensity = 0.2;
+  capeMat.transparent = true;
+  capeMat.opacity = 0.86;
+  capeMat.side = THREE.DoubleSide;
+  const capeGeo = new THREE.BufferGeometry();
+  capeGeo.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(
+      [
+        0, 1.02, -0.24,
+        -0.5, 0.08, -0.9,
+        0.5, 0.08, -0.9,
+      ],
+      3,
+    ),
+  );
+  capeGeo.setIndex([0, 1, 2]);
+  capeGeo.computeVertexNormals();
+  const cape = new THREE.Mesh(capeGeo, capeMat);
   cape.castShadow = true;
   bodyRoot.add(cape);
 
@@ -594,9 +745,13 @@ function setHover(target) {
 }
 
 function showStory(story) {
+  clearTimeout(showStory.timer);
   storyTitleEl.textContent = story.title;
   storyTextEl.textContent = story.text;
   storyEl.classList.remove("hidden");
+  showStory.timer = setTimeout(() => {
+    storyEl.classList.add("hidden");
+  }, 8500);
 }
 
 function enterMemoryTavern() {
@@ -643,7 +798,7 @@ function updateRestoration() {
 
 function playMemoryEcho(memory) {
   const group = new THREE.Group();
-  group.position.set(...memory.pos);
+  group.position.set(...memoryPosition(memory));
   group.userData.life = 4.2;
   group.userData.maxLife = 4.2;
   const color = new THREE.Color(memory.color);
@@ -682,16 +837,73 @@ function playMemoryEcho(memory) {
   scene.add(group);
 }
 
-function lightCore() {
-  coreLit = true;
-  completeEl.classList.remove("hidden");
+function createAwakeningWindowLights() {
+  if (awakeningWindowLights.length) return;
+  [
+    [-3.2, 1.85, 4.5],
+    [2.9, 2.05, 3.9],
+    [4.2, 1.65, 0.4],
+    [-4.6, 1.75, -1.0],
+    [1.4, 2.2, -3.4],
+  ].forEach((pos) => {
+    const light = new THREE.PointLight("#ffd58f", 0, 5.5, 1.7);
+    light.position.set(...pos);
+    awakeningWindowLights.push(light);
+    scene.add(light);
+  });
+}
+
+function playAwakeningPad() {
+  initAudio();
+  const { ctx } = barrelTone;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.035, ctx.currentTime + 3.2);
+  gain.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 13.5);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 16);
+  [220, 329.63, 440].forEach((freq, index) => {
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    osc.type = index === 1 ? "triangle" : "sine";
+    osc.frequency.value = freq;
+    filter.type = "lowpass";
+    filter.frequency.value = 950;
+    osc.connect(filter);
+    filter.connect(gain);
+    osc.start(ctx.currentTime + index * 0.18);
+    osc.stop(ctx.currentTime + 16.2);
+  });
+  gain.connect(ctx.destination);
+}
+
+function startAwakening() {
+  if (awakening) return;
   const core = interactables.find((item) => item.userData.type === "core");
-  if (!core) return;
-  core.material.color.set("#ffd16f");
-  core.material.emissive.set("#ff9f43");
-  core.material.emissiveIntensity = 2.8;
-  core.userData.light.intensity = 5.6;
-  setTimeout(() => completeEl.classList.add("hidden"), 4300);
+  awakening = {
+    start: clock.elapsedTime,
+    duration: 10,
+    core,
+    cameraStart: camera.position.clone(),
+    targetStart: controls.target.clone(),
+  };
+  coreLit = true;
+  createAwakeningParticles();
+  createAwakeningWindowLights();
+  completeEl.querySelector("p").textContent = "光很轻，像她当年推门时的笑声。\n酒馆没有复活，它只是短暂记起了自己为何存在。\n“谢谢你听完。”\n然后，光灭了。\n但你知道，那份等待被谁听见过了。";
+  completeEl.classList.add("awakening");
+  completeEl.classList.remove("hidden");
+  interactables.forEach((item) => {
+    if (item.userData.type !== "memory") return;
+    item.visible = true;
+    item.userData.awakeningOrb = true;
+  });
+  fadeMusic(musicEnabled ? 0.55 : 0.38, 7000);
+  playAwakeningPad();
+  setTimeout(() => completeEl.classList.add("hidden"), 15000);
+}
+
+function lightCore() {
+  startAwakening();
 }
 
 function triggerClock() {
@@ -829,41 +1041,50 @@ function updateBarrelAudio() {
 
 function buildNavigationFromModel(model) {
   worldMeshes.length = 0;
-  obstacleBoxes.length = 0;
+  collisionMeshes.length = 0;
+  walkableMeshes.length = 0;
   model.updateMatrixWorld(true);
   model.traverse((child) => {
     if (!child.isMesh || !child.geometry) return;
-    const box = new THREE.Box3().setFromObject(child);
-    const size = box.getSize(new THREE.Vector3());
-    if (size.x < 0.08 || size.z < 0.08) return;
+    if (child.visible === false) return;
     worldMeshes.push(child);
-
-    const isBroadFloor = size.y < 0.42 && Math.max(size.x, size.z) > 0.75;
-    const isThinTrim = size.y < 0.22;
-    const isRoof = box.min.y > 2.6 && size.y < 1.2;
-    if (!isBroadFloor && !isThinTrim && !isRoof && size.y > 0.34) {
-      obstacleBoxes.push(box.expandByScalar(0.035));
-    }
+    collisionMeshes.push(child);
+    walkableMeshes.push(child);
   });
 }
 
+function hitWorldNormal(hit) {
+  return hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
+}
+
 function floorHeightAt(x, z, currentY = 4) {
+  const surfaces = groundMesh ? [...walkableMeshes, groundMesh] : walkableMeshes;
   downRaycaster.set(new THREE.Vector3(x, currentY + 8, z), new THREE.Vector3(0, -1, 0));
-  const hits = downRaycaster.intersectObjects(worldMeshes, true);
-  const usableHit = hits.find((hit) => hit.face?.normal?.y > 0.45 && hit.point.y <= maxWalkableY && hit.point.y <= currentY + 0.55);
+  const hits = downRaycaster.intersectObjects(surfaces, true);
+  const usableHit = hits.find((hit) => {
+    if (hit.object.userData?.owner || hit.object.userData?.interactive) return false;
+    return (hitWorldNormal(hit)?.y ?? 0) > 0.35 && hit.point.y <= currentY + 0.65;
+  });
   return usableHit ? Math.max(0.02, usableHit.point.y + 0.03) : 0.02;
 }
 
 function collidesAt(position) {
-  const bodyMinY = position.y + 0.06;
-  const bodyMaxY = position.y + Math.max(0.72, character?.scale.y ?? 1);
-  return obstacleBoxes.some((box) => {
-    if (box.max.y < bodyMinY || box.min.y > bodyMaxY) return false;
-    const cx = THREE.MathUtils.clamp(position.x, box.min.x, box.max.x);
-    const cz = THREE.MathUtils.clamp(position.z, box.min.z, box.max.z);
-    const dx = position.x - cx;
-    const dz = position.z - cz;
-    return dx * dx + dz * dz < characterRadius * characterRadius;
+  if (!character || !collisionMeshes.length) return false;
+  const step = position.clone().sub(character.position);
+  step.y = 0;
+  if (step.lengthSq() <= 0.000001) return false;
+  const direction = step.normalize();
+  const distance = character.position.distanceTo(new THREE.Vector3(position.x, character.position.y, position.z)) + characterRadius;
+  const heights = [0.22, 0.62, 1.02];
+  return heights.some((height) => {
+    const origin = new THREE.Vector3(character.position.x, character.position.y + height, character.position.z);
+    bodyRaycaster.set(origin, direction);
+    bodyRaycaster.far = distance;
+    const hits = bodyRaycaster.intersectObjects(collisionMeshes, true);
+    return hits.some((hit) => {
+      if (hit.object.userData?.owner || hit.object.userData?.interactive) return false;
+      return Math.abs(hitWorldNormal(hit)?.y ?? 0) < 0.72;
+    });
   });
 }
 
@@ -912,8 +1133,9 @@ function setNavTargetFromPointer() {
 
 function moveCharacter(delta, elapsed) {
   if (!character) return;
+  if (jumpComboTimer > 0) jumpComboTimer = Math.max(0, jumpComboTimer - delta);
   const forward = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).normalize();
-  const right = new THREE.Vector3(Math.cos(cameraYaw), 0, -Math.sin(cameraYaw)).normalize();
+  const right = new THREE.Vector3(-Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).normalize();
   const input = new THREE.Vector3();
   if (keys.has("KeyW") || keys.has("ArrowUp")) input.add(forward);
   if (keys.has("KeyS") || keys.has("ArrowDown")) input.sub(forward);
@@ -948,12 +1170,16 @@ function moveCharacter(delta, elapsed) {
     character.position.y = floorY;
     characterVelocityY = 0;
     characterGrounded = true;
+    jumpComboTimer = 0;
+    usedComboJump = false;
     cameraAnchorY = THREE.MathUtils.lerp(cameraAnchorY, floorY, 0.18);
   }
-  if (character.position.y > maxWalkableY + 1.2) {
+  if (character.position.y < -20) {
     character.position.set(0, floorHeightAt(0, 7.2, 0.02), 7.2);
     characterVelocityY = 0;
     characterGrounded = true;
+    jumpComboTimer = 0;
+    usedComboJump = false;
     navTarget = null;
     cameraAnchorY = character.position.y;
     promptEl.textContent = "已回到安全地面";
@@ -999,6 +1225,16 @@ function updateNearbyInteraction() {
       promptEl.textContent = "按 E 倾听这个物件的故事";
     }
   }
+}
+
+function collectTouchedMemories() {
+  if (!character) return;
+  interactables.forEach((item) => {
+    if (item.userData.type !== "memory" || !item.visible) return;
+    if (character.position.distanceTo(item.position) < memoryTouchRadius) {
+      collectMemory(item);
+    }
+  });
 }
 
 function interactWithNearest() {
@@ -1054,6 +1290,75 @@ function updateMemoryEchoes(delta) {
       scene.remove(group);
       phantomGroups.splice(i, 1);
     }
+  }
+}
+
+function updateAwakening(rawDelta, elapsed) {
+  if (!awakening) return;
+  const t = THREE.MathUtils.clamp((elapsed - awakening.start) / awakening.duration, 0, 1);
+  const eased = t * t * (3 - 2 * t);
+  const glow = Math.sin(elapsed * 3.1) * 0.5 + 0.5;
+
+  renderer.toneMappingExposure = 1.18 + eased * 0.52 + glow * 0.04;
+  scene.fog.density = THREE.MathUtils.lerp(0.012, 0.0035, eased);
+  scene.background.lerpColors(new THREE.Color("#102b4f"), new THREE.Color("#f0c786"), eased);
+
+  if (skyMaterial) {
+    skyMaterial.uniforms.top.value.lerpColors(new THREE.Color("#0d244a"), new THREE.Color("#f4bf76"), eased);
+    skyMaterial.uniforms.horizon.value.lerpColors(new THREE.Color("#38698c"), new THREE.Color("#ffe1ad"), eased);
+    skyMaterial.uniforms.glow.value.lerpColors(new THREE.Color("#f5a96b"), new THREE.Color("#fff0bd"), eased);
+  }
+  if (hemiLight) {
+    hemiLight.color.lerpColors(new THREE.Color("#f8c48a"), new THREE.Color("#fff2bd"), eased);
+    hemiLight.groundColor.lerpColors(new THREE.Color("#5f4c86"), new THREE.Color("#8d7a5d"), eased);
+    hemiLight.intensity = 1.8 + eased * 1.2;
+  }
+  if (sunLight) {
+    sunLight.color.lerpColors(new THREE.Color("#ffb46e"), new THREE.Color("#fff0b2"), eased);
+    sunLight.intensity = 3.2 + eased * 1.8;
+  }
+  if (awakening.core) {
+    const corePower = THREE.MathUtils.lerp(0.8, t < 0.82 ? 4.6 : 2.1, eased);
+    awakening.core.material.color.lerpColors(new THREE.Color("#5f3c4c"), new THREE.Color("#fff1aa"), eased);
+    awakening.core.material.emissive.lerpColors(new THREE.Color("#2b1623"), new THREE.Color("#ffd16f"), eased);
+    awakening.core.material.emissiveIntensity = corePower + glow * 0.8;
+    awakening.core.userData.light.color.set("#fff0bd");
+    awakening.core.userData.light.intensity = corePower * 2.1 + glow * 1.4;
+    awakening.core.scale.setScalar(1 + Math.sin(elapsed * 2.0) * 0.06 * eased);
+  }
+  awakeningWindowLights.forEach((light, index) => {
+    light.intensity = eased * (1.5 + (index % 2) * 0.6) + Math.sin(elapsed * 1.8 + index) * 0.08;
+  });
+  awakeningParticles.forEach((sprite, index) => {
+    const rise = (elapsed * 0.16 + sprite.userData.offset) % 1;
+    sprite.position.set(
+      sprite.userData.base.x + Math.sin(elapsed * 0.55 + index) * 0.26,
+      sprite.userData.base.y + rise * 2.2,
+      sprite.userData.base.z + Math.cos(elapsed * 0.45 + index) * 0.26,
+    );
+    sprite.material.opacity = Math.sin(Math.PI * t) * (0.28 + (index % 3) * 0.06);
+  });
+  interactables.forEach((item, index) => {
+    if (!item.userData.awakeningOrb) return;
+    const flash = t < 0.28 ? Math.sin(elapsed * 14 + index) * 0.5 + 0.5 : 0;
+    item.traverse((child) => {
+      if (child.material?.opacity !== undefined) child.material.opacity = THREE.MathUtils.lerp(0.52 + flash * 0.35, 0.12, eased);
+      if (child.material?.emissiveIntensity !== undefined) child.material.emissiveIntensity = THREE.MathUtils.lerp(1.8 + flash * 1.2, 0.24, eased);
+    });
+  });
+
+  if (viewMode === "explore" && character) {
+    const angle = cameraYaw + eased * Math.PI * 0.62;
+    const base = new THREE.Vector3(character.position.x, cameraAnchorY, character.position.z);
+    const offset = new THREE.Vector3(0, 3.45 + eased * 1.75, -7.0 - eased * 4.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+    camera.position.lerp(base.clone().add(offset), 0.026 + eased * 0.024);
+    controls.target.lerp(new THREE.Vector3(0, 1.55 + eased * 0.62, 0.4), 0.026 + eased * 0.024);
+    camera.lookAt(controls.target);
+  }
+  if (t >= 1) {
+    awakeningParticles.forEach((sprite) => {
+      sprite.material.opacity = THREE.MathUtils.lerp(sprite.material.opacity, 0, rawDelta * 0.8);
+    });
   }
 }
 
@@ -1146,7 +1451,7 @@ window.addEventListener("pointerup", (event) => {
   }
   const type = hovered.userData.type;
   if (type === "memory") {
-    collectMemory(hovered);
+    setNavTargetFromPointer();
     return;
   }
   if (type === "clock") triggerClock();
@@ -1159,10 +1464,19 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     if (characterGrounded) {
       initAudio();
-      characterVelocityY = 3.25;
+      characterVelocityY = jumpStrength;
       characterGrounded = false;
+      jumpComboTimer = jumpComboWindow;
+      usedComboJump = false;
       spawnJumpTrail();
       playBellPair(1046.5);
+    } else if (!usedComboJump && jumpComboTimer > 0) {
+      initAudio();
+      characterVelocityY = comboJumpStrength;
+      jumpComboTimer = 0;
+      usedComboJump = true;
+      spawnJumpTrail();
+      playBellPair(1174.7);
     }
   }
   if (event.code === "KeyV" && !event.repeat) {
@@ -1234,11 +1548,13 @@ function animate() {
       if (coreLit) item.scale.setScalar(1 + Math.sin(elapsed * 2.2) * 0.05);
     }
   });
+  updateAwakening(rawDelta, elapsed);
 
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(interactables, true);
   const owner = hits.length ? hits[0].object.userData.owner || hits[0].object : null;
   setHover(owner?.visible === false ? null : owner);
+  collectTouchedMemories();
   updateNearbyInteraction();
 
   updateBarrelAudio();

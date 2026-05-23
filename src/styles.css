@@ -221,31 +221,39 @@ p {
 
 .story {
   position: fixed;
-  right: 24px;
-  top: 24px;
-  width: min(380px, calc(100vw - 48px));
-  padding: 20px 22px 22px;
-  border: 1px solid rgba(255, 225, 169, 0.42);
+  left: 50%;
+  top: 50%;
+  width: min(520px, calc(100vw - 56px));
+  max-height: min(68vh, 620px);
+  padding: 24px 28px 26px;
+  border: 1px solid rgba(255, 225, 169, 0.5);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(69, 39, 39, 0.78), rgba(31, 22, 34, 0.78)),
-    radial-gradient(circle at top left, rgba(255, 201, 104, 0.34), transparent 52%);
-  box-shadow: 0 24px 56px rgba(23, 11, 18, 0.44);
+    linear-gradient(180deg, rgba(50, 31, 32, 0.86), rgba(16, 17, 25, 0.84)),
+    radial-gradient(circle at top left, rgba(255, 190, 99, 0.28), transparent 56%);
+  box-shadow:
+    0 0 38px rgba(255, 190, 99, 0.22),
+    0 24px 70px rgba(12, 7, 12, 0.58);
   backdrop-filter: blur(18px);
+  transform: translate(-50%, -50%);
+  overflow: hidden auto;
 }
 
 .story h2 {
   padding-right: 30px;
-  font-size: 22px;
+  color: #fff1c9;
+  font-size: 28px;
   line-height: 1.25;
   letter-spacing: 0;
 }
 
 .story p {
-  margin-top: 12px;
+  margin-top: 16px;
   color: #ffe8bf;
-  font-size: 15px;
-  line-height: 1.75;
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .story button {
@@ -275,6 +283,28 @@ p {
   text-align: center;
   pointer-events: none;
   text-shadow: 0 2px 16px rgba(255, 172, 72, 0.75);
+}
+
+.complete.awakening {
+  width: min(620px, calc(100vw - 56px));
+  padding: 26px 30px;
+  border: 1px solid rgba(255, 225, 169, 0.36);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(45, 31, 32, 0.62), rgba(15, 17, 24, 0.56)),
+    radial-gradient(circle at top, rgba(255, 203, 116, 0.22), transparent 58%);
+  box-shadow: 0 0 60px rgba(255, 190, 99, 0.28), 0 26px 80px rgba(10, 7, 10, 0.36);
+  backdrop-filter: blur(14px);
+  color: #fff3cf;
+  font-size: 18px;
+  line-height: 1.9;
+  white-space: pre-line;
+}
+
+.complete.awakening .complete-mark {
+  width: 62px;
+  height: 62px;
+  opacity: 0.82;
 }
 
 .complete-mark {
@@ -391,9 +421,12 @@ body.slow-time .prompt {
   .story {
     left: 14px;
     right: 14px;
-    top: auto;
-    bottom: 116px;
+    top: 50%;
+    bottom: auto;
     width: auto;
+    max-height: 68vh;
+    padding: 22px 20px 24px;
+    transform: translateY(-50%);
   }
 
   .controls,
