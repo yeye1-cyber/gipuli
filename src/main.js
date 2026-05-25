@@ -1367,8 +1367,6 @@ function loadModel() {
   loader.load(
     "/models/scene.gltf",
     (gltf) => {
-       console.log("模型成功加载");
-    console.log(gltf);
       const model = gltf.scene;
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());
