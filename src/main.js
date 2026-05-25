@@ -1396,7 +1396,7 @@ function loadModel() {
     },
     undefined,
     () => {
-      promptEl.textContent = "模型载入失败，请确认 assets 里的 scene.gltf 与 scene.bin 保持在一起";
+      promptEl.textContent = "模型载入失败，请确认 public/models 里的 scene.gltf 与 scene.bin 保持在一起";
     },
   );
 }

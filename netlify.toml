@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/models/*.gltf"
+  [headers.values]
+    Content-Type = "model/gltf+json"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/models/*.bin"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Cache-Control = "public, max-age=3600"
