@@ -15,6 +15,12 @@ const memoryListEl = document.querySelector("#memory-list");
 const completeEl = document.querySelector("#complete");
 const musicToggle = document.querySelector("#music-toggle");
 const bgMusic = document.querySelector("#bg-music");
+const mobileControlsEl = document.querySelector(".mobile-controls");
+const mobileJoystickEl = document.querySelector("#mobile-joystick");
+const mobileJoystickKnobEl = document.querySelector(".mobile-joystick-knob");
+const mobileJumpBtn = document.querySelector("#mobile-jump");
+const mobileListenBtn = document.querySelector("#mobile-listen");
+const mobileViewBtn = document.querySelector("#mobile-view");
 document.querySelector("#close-story").addEventListener("click", () => {
   clearTimeout(showStory.timer);
   storyEl.classList.add("hidden");
@@ -52,6 +58,7 @@ const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2(10, 10);
 const keys = new Set();
+const mobileMoveInput = new THREE.Vector2();
 const interactables = [];
 const gears = [];
 const steamPuffs = [];
@@ -100,6 +107,11 @@ const maxWalkableY = 1.15;
 const jumpStrength = 5.7;
 const comboJumpStrength = 8.1;
 const jumpComboWindow = 0.34;
+const mobileTouchQuery = window.matchMedia("(max-width: 900px) and (pointer: coarse)");
+const isMobileTouch = () => mobileTouchQuery.matches;
+let joystickPointerId = null;
+let mobileTapTimer = null;
+let lastMobileTapAt = 0;
 
 const stories = {
   barrel: {
@@ -759,6 +771,7 @@ function enterMemoryTavern() {
   introEl.classList.add("exiting");
   document.querySelector(".hud").classList.remove("hidden");
   document.querySelector(".controls").classList.remove("hidden");
+  mobileControlsEl.classList.remove("hidden");
   document.querySelector(".credit").classList.remove("hidden");
   promptEl.classList.remove("hidden");
   promptEl.textContent = "这间酒馆本身，就是最后的记忆容器";
@@ -1012,7 +1025,6 @@ async function startMusic() {
     musicToggle.textContent = "关闭音乐";
     musicToggle.classList.add("playing");
     fadeMusic(0.35, 1200);
-    playBellPair(987.77);
   } catch {
     musicEnabled = false;
     musicToggle.textContent = "开启音乐";
@@ -1141,6 +1153,10 @@ function moveCharacter(delta, elapsed) {
   if (keys.has("KeyS") || keys.has("ArrowDown")) input.sub(forward);
   if (keys.has("KeyA") || keys.has("ArrowLeft")) input.sub(right);
   if (keys.has("KeyD") || keys.has("ArrowRight")) input.add(right);
+  if (isMobileTouch() && mobileMoveInput.lengthSq() > 0.0025) {
+    input.addScaledVector(right, mobileMoveInput.x);
+    input.addScaledVector(forward, -mobileMoveInput.y);
+  }
 
   const manualInput = input.lengthSq() > 0.001;
   if (manualInput) navTarget = null;
@@ -1225,6 +1241,7 @@ function updateNearbyInteraction() {
       promptEl.textContent = "按 E 倾听这个物件的故事";
     }
   }
+  mobileListenBtn?.classList.toggle("available", Boolean(nearestInteractable));
 }
 
 function collectTouchedMemories() {
@@ -1257,6 +1274,27 @@ function toggleViewMode() {
     promptEl.textContent = "全局欣赏视角：拖拽环顾，按 V 回到人物探索";
   } else {
     promptEl.textContent = "浜虹墿鎺㈢储瑙嗚锛歐ASD 绉诲姩锛孍 浜掑姩";
+  }
+}
+
+function tryJump() {
+  if (characterGrounded) {
+    initAudio();
+    characterVelocityY = jumpStrength;
+    characterGrounded = false;
+    jumpComboTimer = jumpComboWindow;
+    usedComboJump = false;
+    spawnJumpTrail();
+    playBellPair(1046.5);
+    return;
+  }
+  if (!usedComboJump && jumpComboTimer > 0) {
+    initAudio();
+    characterVelocityY = comboJumpStrength;
+    jumpComboTimer = 0;
+    usedComboJump = true;
+    spawnJumpTrail();
+    playBellPair(1174.7);
   }
 }
 
@@ -1428,7 +1466,7 @@ function updatePointerFromEvent(event) {
 }
 
 window.addEventListener("pointerdown", (event) => {
-  if (event.target.closest(".controls, .story, .hud")) return;
+  if (event.target.closest(".controls, .mobile-controls, .story, .hud")) return;
   updatePointerFromEvent(event);
   isPointerDown = true;
   dragStarted = false;
@@ -1439,12 +1477,28 @@ window.addEventListener("pointerdown", (event) => {
 
 window.addEventListener("pointerup", (event) => {
   updatePointerFromEvent(event);
-  if (event.target.closest(".controls, .story, .hud")) {
+  if (event.target.closest(".controls, .mobile-controls, .story, .hud")) {
     isPointerDown = false;
     return;
   }
   isPointerDown = false;
   if (dragStarted) return;
+  if (isMobileTouch() && event.pointerType !== "mouse" && event.target === canvas) {
+    const now = performance.now();
+    if (now - lastMobileTapAt < 300) {
+      clearTimeout(mobileTapTimer);
+      mobileTapTimer = null;
+      lastMobileTapAt = 0;
+      tryJump();
+    } else {
+      lastMobileTapAt = now;
+      mobileTapTimer = setTimeout(() => {
+        setNavTargetFromPointer();
+        mobileTapTimer = null;
+      }, 310);
+    }
+    return;
+  }
   if (!hovered) {
     setNavTargetFromPointer();
     return;
@@ -1462,22 +1516,7 @@ window.addEventListener("keydown", (event) => {
   keys.add(event.code);
   if (event.code === "Space") {
     event.preventDefault();
-    if (characterGrounded) {
-      initAudio();
-      characterVelocityY = jumpStrength;
-      characterGrounded = false;
-      jumpComboTimer = jumpComboWindow;
-      usedComboJump = false;
-      spawnJumpTrail();
-      playBellPair(1046.5);
-    } else if (!usedComboJump && jumpComboTimer > 0) {
-      initAudio();
-      characterVelocityY = comboJumpStrength;
-      jumpComboTimer = 0;
-      usedComboJump = true;
-      spawnJumpTrail();
-      playBellPair(1174.7);
-    }
+    tryJump();
   }
   if (event.code === "KeyV" && !event.repeat) {
     toggleViewMode();
@@ -1487,6 +1526,44 @@ window.addEventListener("keydown", (event) => {
   }
 });
 window.addEventListener("keyup", (event) => keys.delete(event.code));
+
+function updateJoystick(event) {
+  const rect = mobileJoystickEl.getBoundingClientRect();
+  const radius = rect.width * 0.34;
+  let x = event.clientX - (rect.left + rect.width / 2);
+  let y = event.clientY - (rect.top + rect.height / 2);
+  const distance = Math.hypot(x, y);
+  if (distance > radius) {
+    x = (x / distance) * radius;
+    y = (y / distance) * radius;
+  }
+  mobileMoveInput.set(x / radius, y / radius);
+  mobileJoystickKnobEl.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+}
+
+function resetJoystick() {
+  joystickPointerId = null;
+  mobileMoveInput.set(0, 0);
+  mobileJoystickKnobEl.style.transform = "translate(-50%, -50%)";
+}
+
+mobileJoystickEl?.addEventListener("pointerdown", (event) => {
+  joystickPointerId = event.pointerId;
+  mobileJoystickEl.setPointerCapture(event.pointerId);
+  updateJoystick(event);
+});
+mobileJoystickEl?.addEventListener("pointermove", (event) => {
+  if (event.pointerId === joystickPointerId) updateJoystick(event);
+});
+mobileJoystickEl?.addEventListener("pointerup", resetJoystick);
+mobileJoystickEl?.addEventListener("pointercancel", resetJoystick);
+mobileJumpBtn?.addEventListener("click", tryJump);
+mobileListenBtn?.addEventListener("click", interactWithNearest);
+mobileViewBtn?.addEventListener("click", toggleViewMode);
+
+mobileTouchQuery.addEventListener("change", () => {
+  if (!isMobileTouch()) resetJoystick();
+});
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
